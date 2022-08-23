@@ -1,1 +1,45 @@
 # R code for study on health complaints attribution to RF-EMF exposure and predictors of electromagnetic hypersensitivity over 10 years
+
+library(msm)
+
+readRDS(data_long_sort.rds)
+
+nlevy <- length(unique(data_long_sort$c[!is.na(data_long_sort$c)]))
+statetable.msm(data_long_sort$c, data_long_sort$ID, data = data_long_sort)
+
+#Define Matrix Q: which transitions are permitted? (diagonal entries of Q are defined as minus the sum of all the other entries in the row)
+Q <- matrix(1,nrow=nlevy,ncol=nlevy)
+diag(Q) <- 0
+Q.crude <- crudeinits.msm(c~years, subject=ID, data=data_long_sort, qmatrix=Q) #Calculates crude initial values for transition intensities by assuming that transitions occur at times T0,T1,T4
+
+#Empty Markov Model with function msm: 
+res_msm0 <- msm(c~years, subject=ID, data=data_long_sort, obstype=1, qmatrix=Q.crude)
+printold.msm(res_msm0)
+summary(res_msm0,times=sort(unique(data_long_sort$years)))
+
+#table by group (data check)
+table(data_long_sort$years, data_long_sort$c)
+
+#sojourn time for each state (i.e. amount of time spent in each disease state before moving on to the next one)
+sojourn.msm(res_msm0)
+
+#Plots parametric survival curves, stratified by disease state.
+plot(res_msm0)
+
+#fitted transition probability over an interval of t = 1, 2, 5, 10 year(s) (t can be specified)
+pmatrix.msm(res_msm0, t = 1, ci = "normal")
+pmatrix.msm(res_msm0, t = 2, ci = "normal")
+pmatrix.msm(res_msm0, t = 5, ci = "normal")
+pmatrix.msm(res_msm0, t = 10, ci = "normal")
+
+#Add cov1, cov2
+Q2 <- qmatrix.msm(res_msm0)$estimate
+res_msm1 <- msm(c~years, subject=ID, data=data_long_sort, obstype=1, qmatrix=Q2, covariates = ~cov1+cov2)
+printold.msm(res_msm1) #print coef
+res_msm1 #print HRs
+
+#summary(res_msm1,times=sort(unique(data_long_sort$cov1)))
+hazard.msm(res_msm1, cl=0.95)
+
+#GoF test
+pearson.msm(res_msm0)
